@@ -1,8 +1,0 @@
-# ninja log v5
-2	2046	1734554749169137514	CMakeFiles/kuznechik.dir/kuznyechik.cpp.o	f72b6d6a83f96ab0
-2	2598	1734554749721700971	CMakeFiles/kuznechik.dir/block128.cpp.o	bb6d90ca14b8406f
-1	3100	1734554750221754173	CMakeFiles/kuznechik.dir/main.cpp.o	e1323b3eed6db6e4
-14	1692	1734554810644751233	CMakeFiles/kuznechik.dir/kuznyechik.cpp.o	f82abc26bf2bf977
-15	2016	1734554810971949846	CMakeFiles/kuznechik.dir/block128.cpp.o	f9cc440362bca158
-13	2362	1734554811318808303	CMakeFiles/kuznechik.dir/main.cpp.o	c1a614b50ecd3b74
-2362	2399	1734554811359770973	kuznechik	a7feeaf224c9a984
