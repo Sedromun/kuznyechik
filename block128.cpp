@@ -30,6 +30,7 @@ void block128::S() {
 }
 
 void block128::S_inv() {
+
     // TODO
 }
 
