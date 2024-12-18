@@ -1,0 +1,3 @@
+/Users/ivan/ITMO/kuznechik/cmake-build-debug-clang/CMakeFiles/kuznechik.dir
+/Users/ivan/ITMO/kuznechik/cmake-build-debug-clang/CMakeFiles/edit_cache.dir
+/Users/ivan/ITMO/kuznechik/cmake-build-debug-clang/CMakeFiles/rebuild_cache.dir

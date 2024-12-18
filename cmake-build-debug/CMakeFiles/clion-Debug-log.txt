@@ -1,0 +1,4 @@
+"/Users/ivan/Applications/CLion 2024.1.app/Contents/bin/cmake/mac/aarch64/bin/cmake" -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_MAKE_PROGRAM=/Users/ivan/Applications/CLion 2024.1.app/Contents/bin/ninja/mac/aarch64/ninja" -DCMAKE_CXX_COMPILER=/opt/homebrew/bin/g++-14 -G Ninja -S /Users/ivan/ITMO/kuznechik -B /Users/ivan/ITMO/kuznechik/cmake-build-debug
+-- Configuring done (0.1s)
+-- Generating done (0.0s)
+-- Build files have been written to: /Users/ivan/ITMO/kuznechik/cmake-build-debug
