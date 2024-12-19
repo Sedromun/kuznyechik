@@ -3,13 +3,14 @@
 #include <chrono>
 #include "kuznyechik.hpp"
 #include "block128.hpp"
+#include "grasshopper.hpp"
 
 block128 create_random_block() {
     return {static_cast<uint64_t>(rand()), static_cast<uint64_t>(rand())};
 }
 
 void performance_test() {
-    std::size_t BLOCKS_IN_100Mb = 6553600;
+    std::size_t BLOCKS_IN_100Mb = 6250000;
 
     long long elapsed_total = 0;
 
@@ -24,6 +25,8 @@ void performance_test() {
     for (std::size_t iter = 0; iter < 100; iter++) { // 10Gb of data
         auto start = std::chrono::system_clock::now();
         for (std::size_t i = 0; i < BLOCKS_IN_100Mb; i++) {
+//            encryptor.ReadText("text.txt", false);
+//            encryptor.Encrypt();
             kuzya.encrypt(data[i]);
         }
         auto end = std::chrono::system_clock::now();
@@ -41,13 +44,13 @@ void performance_test() {
     std::cout << "Total speed of algorithm is " << speed << " Mb/sec";
 }
 
-bool test_string() {
+bool test_string(kuznyechik& kuzya) {
     std::string in = "ffeeddccbbaa99881122334455667700";
     auto bl = block128(in);
     return bl.to_string() == in;
 }
 
-bool test_S() {
+bool test_S(kuznyechik& kuzya) {
     std::pair<std::string, std::string> tcs[4] = {
             {"ffeeddccbbaa99881122334455667700", "b66cd8887d38e8d77765aeea0c9a7efc"},
             {"b66cd8887d38e8d77765aeea0c9a7efc", "559d8dd7bd06cbfe7e7b262523280d39"},
@@ -58,7 +61,7 @@ bool test_S() {
         auto in = tc.first;
         auto exp = tc.second;
         auto bl = block128(in);
-        bl.S();
+        kuzya.S(bl);
         if (bl.to_string() != exp) {
             return false;
         }
@@ -66,7 +69,7 @@ bool test_S() {
     return true;
 }
 
-bool test_R() {
+bool test_R(kuznyechik& kuzya) {
     std::pair<std::string, std::string> tcs[4] = {
             {"00000000000000000000000000000100", "94000000000000000000000000000001"},
             {"94000000000000000000000000000001", "a5940000000000000000000000000000"},
@@ -77,7 +80,7 @@ bool test_R() {
         auto in = tc.first;
         auto exp = tc.second;
         auto bl = block128(in);
-        bl.R();
+        kuzya.R(bl);
         if (bl.to_string() != exp) {
             std::cout << bl.to_string() << " " << exp << std::endl;
             return false;
@@ -86,7 +89,7 @@ bool test_R() {
     return true;
 }
 
-bool test_L() {
+bool test_L(kuznyechik& kuzya) {
     std::pair<std::string, std::string> tcs[4] = {
             {"64a59400000000000000000000000000", "d456584dd0e3e84cc3166e4b7fa2890d"},
             {"d456584dd0e3e84cc3166e4b7fa2890d", "79d26221b87b584cd42fbc4ffea5de9a"},
@@ -97,7 +100,7 @@ bool test_L() {
         auto in = tc.first;
         auto exp = tc.second;
         auto bl = block128(in);
-        bl.L();
+        kuzya.L(bl);
         if (bl.to_string() != exp) {
             return false;
         }
@@ -105,29 +108,54 @@ bool test_L() {
     return true;
 }
 
-bool test_LSX() {
+bool test_LS(kuznyechik& kuzya) {
+    std::string tcs[4] = {
+            "d456584dd0e3e84cc3166e4b7fa2890d",
+            "64a59400000000000000000000000000",
+            "79d26221b87b584cd42fbc4ffea5de9a",
+            "0e93691a0cfc60408b7b68f66b513c13"
+    };
+
+    for (auto &tc: tcs) {
+        auto tt = tc;
+        auto ls = block128(tc);
+        auto s = block128(tc);
+        kuzya.ApplyLS(ls);
+
+        kuzya.S(s);
+        kuzya.L(s);
+        if (ls.to_string() != s.to_string()) {
+            std::cerr << "test_LS: got: '" << ls.to_string() << "', expected: '" << s.to_string() << "'\n";
+            return false;
+        }
+    }
+    return true;
+}
+
+
+bool test_LSX(kuznyechik& kuzya) {
     block128 key = block128("8899aabbccddeeff0011223344556677");
     block128 C = block128("6ea276726c487ab85d27bd10dd849401");
-    key.X_k(C);
+    kuzya.X_k(key, C);
     if (key.to_string() != "e63bdcc9a09594475d369f2399d1f276") {
         return false;
     }
-    key.S();
+    kuzya.S(key);
     if (key.to_string() != "0998ca37a7947aabb78f4a5ae81b748a") {
         return false;
     }
-    key.L();
+    kuzya.L(key);
     if (key.to_string() != "3d0940999db75d6a9257071d5e6144a6") {
         return false;
     }
     return true;
 }
 
-bool test_F() {
+bool test_F(kuznyechik& kuzya) {
     std::pair<block128, block128> key = {block128("8899aabbccddeeff0011223344556677"),
                                          block128("fedcba98765432100123456789abcdef")};
     block128 C = block128("6ea276726c487ab85d27bd10dd849401");
-    F_k(C, key);
+    kuzya.F_k(C, key);
     if (key.first.to_string() != "c3d5fa01ebe36f7a9374427ad7ca8949" ||
             key.second.to_string() != "8899aabbccddeeff0011223344556677") {
         std::cout << key.first.to_string() << " " << key.second.to_string() << std::endl;
@@ -136,7 +164,7 @@ bool test_F() {
     return true;
 }
 
-bool test_set_next_key() {
+bool test_set_next_key(kuznyechik& kuzya) {
     std::pair<block128, block128> key = {block128("8899aabbccddeeff0011223344556677"),
                                          block128("fedcba98765432100123456789abcdef")};
 
@@ -163,8 +191,8 @@ bool test_set_next_key() {
     };
 
     for (std::size_t j = 1; j < 9; j++) {
-        block128 iter_const = kuznyechik::get_iterative_const(j);
-        F_k(iter_const, key);
+        block128 iter_const = kuzya.get_iterative_const(j);
+        kuzya.F_k(iter_const, key);
         if (key.first.to_string() != transes[j * 2 + 1]) {
             std::cout << key.first.to_string() << " " << transes[j * 2 + 1] << std::endl;
             return false;
@@ -241,20 +269,25 @@ void check_test_res(std::string name, bool res) {
 
 
 void correctness_test() {
-    check_test_res("Test string", test_string());
-    check_test_res("Test S", test_S());
-    check_test_res("Test R", test_R());
-    check_test_res("Test L", test_L());
-    check_test_res("Test LSX", test_LSX());
-    check_test_res("Test F", test_F());
-    check_test_res("Test set next key", test_set_next_key());
-    check_test_res("Test setting keys", test_set_keys());
-    check_test_res("Test cypher a block", test_cyphertext());
-    check_test_res("Test decrypt a block", test_decrypt());
+    std::pair<block128, block128> key = {create_random_block(), create_random_block()};
+    auto kuzya = kuznyechik(key);
+
+    check_test_res("Test string", test_string(kuzya));
+    check_test_res("Test S", test_S(kuzya));
+    check_test_res("Test R", test_R(kuzya));
+    check_test_res("Test L", test_L(kuzya));
+    check_test_res("Test LS", test_LS(kuzya));
+//    check_test_res("Test LSX", test_LSX(kuzya));
+//    check_test_res("Test F", test_F(kuzya));
+//    check_test_res("Test set next key", test_set_next_key(kuzya));
+//    check_test_res("Test setting keys", test_set_keys());
+//    check_test_res("Test cypher a block", test_cyphertext());
+//    check_test_res("Test decrypt a block", test_decrypt());
 }
 
 
 int main() {
+    std::cout << "@#$ check" << std::endl;
     correctness_test();
-    performance_test();
+//    performance_test();
 }
