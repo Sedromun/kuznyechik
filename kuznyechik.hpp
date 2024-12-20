@@ -5,52 +5,40 @@
 #include <array>
 #include "block128.hpp"
 
-class kuznyechik {
-public:
-    block128 iterative_keys[11] = {block128()};
-
-    using Matrix = std::array<std::array<uint8_t, 16>, 16>;
-    kuznyechik::Matrix SqrMatrix(const Matrix& mat);
-    uint8_t PolyMul(uint8_t left, uint8_t right);
-
-
+struct kuznyechik {
     using LookupTable = std::array<uint8_t, 16>[16][256];
+    using Matrix = std::array<std::array<uint8_t, 16>, 16>;
+
+    block128 iterative_keys[11] = {block128()};
+    block128 decryption_keys[11] = {block128()};
+
+    kuznyechik::Matrix SqrMatrix(const Matrix& mat);
+    static uint8_t PolyMul(uint8_t left, uint8_t right);
 
     block128 get_iterative_const(size_t i);
 
     explicit kuznyechik(std::pair<block128, block128> key);
     block128* get_iterative_keys();
-
     void update_key(std::pair<block128, block128> key);
 
     void encrypt(block128 &plaintext);
     void decrypt(block128 &ciphertext);
 
 
+    void ApplyLS(block128 &a, LookupTable&);
+
+    uint8_t linear_transition(block128& a);
+
     void X_k(block128 &a, block128 &k);
 
     void S(block128 &a);
+    static void S_inv(block128 &a);
 
-    void ApplyLS(block128 &a, LookupTable&);
-
-    void S_inv(block128 &a);
-
-    inline void R(block128 &a) {
-        uint8_t val = linear_transition(a);
-        std::memmove(a.a.data() + 1, a.a.data(), 15);
-        a.a[0] = val;
-//        a.lower >>= 8;
-//        a.lower |= (((a.upper) & 0xFF) << 56);
-//
-//        a.upper >>= 8;
-//        a.upper |= (static_cast<uint64_t>(val) << 56);
-    }
+    void R(block128 &a);
+    void R_inv(block128& a);
 
     void L(block128 &a);
-
-    void R_inv(block128 &a);
-
-    void L_inv(block128 &a);
+    void L_inv(block128& a);
 
     void F_k(block128 &k, std::pair<block128, block128> &a);
 
@@ -66,19 +54,14 @@ public:
     void GenerateDecTable();
     void GenerateDecLTable();
 
+    uint8_t mask_arr[16] = {
+            0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF,
+            0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF
+    };
 
+    constexpr static const uint8_t TRANSITION_ARRAY[16] = { 148, 32, 133, 16, 194, 192, 1, 251, 1, 192, 194, 16, 133, 32, 148, 1 };
 
-    inline static uint8_t linear_transition(block128& a) {
-        uint8_t res = 0;
-        for (int i = 0; i < 16; ++i) {
-            res ^= block128::TRANSITION_ARRAY_GF_TABLE_REVERSED[i][a.a[15 - i]];
-        }
-
-        return res;
-    }
-
-
-    alignas(16) const static constexpr uint8_t PI_ARRAY[256] = {
+    const static constexpr uint8_t PI_ARRAY[256] = {
             252, 238, 221, 17, 207, 110, 49, 22, 251, 196, 250, 218, 35, 197, 4, 77, 233,
             119, 240, 219, 147, 46, 153, 186, 23, 54, 241, 187, 20, 205, 95, 193, 249, 24, 101,
             90, 226, 92, 239, 33, 129, 28, 60, 66, 139, 1, 142, 79, 5, 132, 2, 174, 227, 106, 143,
