@@ -6,16 +6,15 @@
 #include "block128.hpp"
 
 class kuznyechik {
+public:
     block128 iterative_keys[11] = {block128()};
 
     using Matrix = std::array<std::array<uint8_t, 16>, 16>;
     kuznyechik::Matrix SqrMatrix(const Matrix& mat);
     uint8_t PolyMul(uint8_t left, uint8_t right);
 
-public:
-    using LookupTable = std::array<uint8_t, 16>[16][256];
 
-    LookupTable& get_lookup_table();
+    using LookupTable = std::array<uint8_t, 16>[16][256];
 
     block128 get_iterative_const(size_t i);
 
@@ -25,25 +24,26 @@ public:
     void update_key(std::pair<block128, block128> key);
 
     void encrypt(block128 &plaintext);
-    void decipher(block128 &ciphertext);
+    void decrypt(block128 &ciphertext);
 
 
     void X_k(block128 &a, block128 &k);
 
     void S(block128 &a);
 
-    void ApplyLS(block128 &a);
+    void ApplyLS(block128 &a, LookupTable&);
 
     void S_inv(block128 &a);
 
     inline void R(block128 &a) {
-        uint8_t val = linear_transition(a.lower, a.upper);
-
-        a.lower >>= 8;
-        a.lower |= (((a.upper) & 0xFF) << 56);
-
-        a.upper >>= 8;
-        a.upper |= (static_cast<uint64_t>(val) << 56);
+        uint8_t val = linear_transition(a);
+        std::memmove(a.a.data() + 1, a.a.data(), 15);
+        a.a[0] = val;
+//        a.lower >>= 8;
+//        a.lower |= (((a.upper) & 0xFF) << 56);
+//
+//        a.upper >>= 8;
+//        a.upper |= (static_cast<uint64_t>(val) << 56);
     }
 
     void L(block128 &a);
@@ -55,21 +55,23 @@ public:
     void F_k(block128 &k, std::pair<block128, block128> &a);
 
     LookupTable enc_ls_table;
+    LookupTable dec_ls_table;
+    LookupTable dec_l_table;
 
-private:
     uint8_t mul_table[256][256];
 
     void set_iterative_keys(std::pair<block128, block128> &key);
     void GenerateEncTable();
     void GenerateMulTable();
+    void GenerateDecTable();
+    void GenerateDecLTable();
 
-    inline static uint8_t linear_transition(uint64_t lower, uint64_t upper) {
+
+
+    inline static uint8_t linear_transition(block128& a) {
         uint8_t res = 0;
-        for (int i = 0, shft = 0; i < 8; ++i, shft += 8) {
-            res ^= block128::TRANSITION_ARRAY_GF_TABLE_REVERSED[i][(lower >> shft) & 0xFF];
-        }
-        for (int i = 0, shft = 0; i < 8; ++i, shft += 8) {
-            res ^= block128::TRANSITION_ARRAY_GF_TABLE_REVERSED[i+8][(upper >> shft) & 0xFF];
+        for (int i = 0; i < 16; ++i) {
+            res ^= block128::TRANSITION_ARRAY_GF_TABLE_REVERSED[i][a.a[15 - i]];
         }
 
         return res;

@@ -5,16 +5,17 @@
 #include <arm_neon.h>
 
 #include "block128.hpp"
-#include "kuznyechik.hpp"
-
 
 block128::block128() {}
 
-block128::block128(uint64_t upper, uint64_t lower) : upper(upper), lower(lower) {}
+block128::block128(std::array<uint8_t, 16>& a) : a(a) {}
 
-block128::block128(uint64_t num) : lower(num), upper(0) {}
-
-
+block128::block128(uint64_t num) {
+    a.fill(0);
+    for (size_t i = 0; i < 8; ++i) {
+        a[i + 8] = static_cast<uint8_t>((num >> (56 - i * 8)) & 0xFF); // Extract each byte
+    }
+}
 
 block128::block128(std::string s) {
     if (s.length() != 32) {
@@ -23,15 +24,17 @@ block128::block128(std::string s) {
         return;
     }
 
-    upper = static_cast<uint64_t>(std::stoull(s.substr(0, 16), nullptr, 16));
-    lower = static_cast<uint64_t>(std::stoull(s.substr(16, 16), nullptr, 16));
+    for (size_t i = 0; i < 16; i++) {
+        a[i] = static_cast<uint8_t>(std::stoi(s.substr(2 * i, 2), nullptr, 16));
+    }
 }
 
 std::string block128::to_string() {
     std::ostringstream hexStream;
 
-    hexStream << std::hex << std::setw(16) << std::setfill('0') << static_cast<uint64_t>(upper);
-    hexStream << std::hex << std::setw(16) << std::setfill('0') << static_cast<uint64_t>(lower);
+    for (size_t i = 0; i < 16; i++) {
+        hexStream << std::hex << std::setw(2) << std::setfill('0') << static_cast<uint32_t>(a[i]);
+    }
 
     return hexStream.str();
 }

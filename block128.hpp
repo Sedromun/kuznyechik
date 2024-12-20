@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <cstring>
+#include <array>
 #include <arm_neon.h>
 
 
@@ -31,9 +32,6 @@ struct block128 {
 
     alignas(16) constexpr static const uint8_t* TRANSITION_ARRAY_GF_TABLE_REVERSED[16] = { GF_TABLE_1, GF_TABLE_148, GF_TABLE_32, GF_TABLE_133, GF_TABLE_16, GF_TABLE_194, GF_TABLE_192, GF_TABLE_1, GF_TABLE_251, GF_TABLE_1, GF_TABLE_192, GF_TABLE_194, GF_TABLE_16, GF_TABLE_133, GF_TABLE_32, GF_TABLE_148 };
 
-
-
-
     inline static uint8_t mult(uint8_t polynom1, uint8_t polynom2) {
         uint8_t multRes = 0;
         uint8_t highBit;
@@ -57,13 +55,11 @@ struct block128 {
     }
 
 
-
-    uint64_t upper;
-    uint64_t lower;
+    std::array<uint8_t, 16> a;
 
     block128();
 
-    block128(uint64_t, uint64_t );
+    block128(std::array<uint8_t, 16>& a);
 
     explicit block128(uint64_t num);
 

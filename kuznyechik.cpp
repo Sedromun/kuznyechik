@@ -4,10 +4,6 @@
 #include "block128.hpp"
 
 
-kuznyechik::LookupTable& kuznyechik::get_lookup_table() {
-    return enc_ls_table;
-}
-
 block128 kuznyechik::get_iterative_const(size_t i) {
     auto bl = block128((uint64_t)i);
     L(bl);
@@ -32,27 +28,81 @@ void kuznyechik::encrypt(block128 &plaintext) {
     for(std::size_t i = 1; i <= 10; i++) {
         X_k(plaintext, iterative_keys[i]);
         if (i != 10) {
-            ApplyLS(plaintext);
-//            S(plaintext);
-//            L(plaintext);
+            ApplyLS(plaintext, enc_ls_table);
         }
     }
 }
 
-void kuznyechik::decipher(block128 &ciphertext) {
-    for(std::size_t i = 10; i >= 1; i--) {
-        if (i != 10) {
-            L_inv(ciphertext);
-            S_inv(ciphertext);
-        }
-        X_k(ciphertext, iterative_keys[i]);
+void kuznyechik::decrypt(block128 &ciphertext) {
+
+    std::transform(ciphertext.a.begin(), ciphertext.a.end(), ciphertext.a.begin(),
+                   [](uint8_t idx) { return PI_ARRAY[idx]; });
+//    S(ciphertext);
+//    L_inv(ciphertext);
+//    ApplyLS(ciphertext, dec_l_table);
+    for(std::size_t i = 9; i >= 1; i--) {
+//        auto dec_key = iterative_keys[i + 1];
+//        L_inv(dec_key);
+        ApplyLS(ciphertext, dec_ls_table);
+        X_k(ciphertext, iterative_keys[i + 1]);
     }
+    std::transform(ciphertext.a.begin(), ciphertext.a.end(), ciphertext.a.begin(),
+                   [](uint8_t idx) { return PI_INV_ARRAY[idx]; });
+//    S_inv(ciphertext);
+    X_k(ciphertext, iterative_keys[1]);
 }
 
 kuznyechik::kuznyechik(std::pair<block128, block128> key) {
     set_iterative_keys(key);
     GenerateMulTable();
     GenerateEncTable();
+    GenerateDecTable();
+    GenerateDecLTable();
+}
+
+void kuznyechik::GenerateDecTable()
+{
+    //initializing the martix
+    Matrix l_matrix;
+    for (size_t i = 0; i < 16; ++i)
+        for (size_t j = 0; j < 16; ++j)
+            if (i == 16 - 1)
+                l_matrix[i][j] = block128::TRANSITION_ARRAY[(j + 15) % 16];
+            else if (i + 1 == j)
+                l_matrix[i][j] = 1;
+            else
+                l_matrix[i][j] = 0;
+    // power l_matrix to degree of 2^4
+    for (unsigned i = 0; i < 4; ++i)
+        l_matrix = SqrMatrix(l_matrix);
+
+    for (size_t i = 0; i < 16; ++i)
+        for (size_t j = 0; j < 256; ++j)
+            for (size_t k = 0; k < 16; ++k)
+                dec_ls_table[i][j][k] = mul_table[PI_INV_ARRAY[j]][l_matrix[k][i]];
+}
+
+
+void kuznyechik::GenerateDecLTable()
+{
+    //initializing the martix
+    Matrix l_matrix;
+    for (size_t i = 0; i < 16; ++i)
+        for (size_t j = 0; j < 16; ++j)
+            if (i == 16 - 1)
+                l_matrix[i][j] = block128::TRANSITION_ARRAY[15 - j];
+            else if (i + 1 == j)
+                l_matrix[i][j] = 1;
+            else
+                l_matrix[i][j] = 0;
+    // power l_matrix to degree of 2^4
+    for (unsigned i = 0; i < 4; ++i)
+        l_matrix = SqrMatrix(l_matrix);
+
+    for (size_t i = 0; i < 16; ++i)
+        for (size_t j = 0; j < 256; ++j)
+            for (size_t k = 0; k < 16; ++k)
+                dec_l_table[i][j][k] = mul_table[j][l_matrix[k][i]];
 }
 
 void kuznyechik::update_key(std::pair<block128, block128> key) {
@@ -117,40 +167,56 @@ kuznyechik::Matrix kuznyechik::SqrMatrix(const Matrix& mat)
 
 
 void kuznyechik::X_k(block128& a, block128 &k) {
-    a.upper ^= k.upper;
-    a.lower ^= k.lower;
+    for(size_t i = 0; i < 16; i++) {
+        a.a[i] ^= k.a[i];
+    }
 }
 
 void kuznyechik::S(block128& a) {
-    uint64_t res1 = 0, res2 = 0;
-    for (uint8_t sft = 0; sft <= 56; sft += 8) {
-        res1 |= static_cast<uint64_t>(PI_ARRAY[(a.upper >> sft) & 0xFF]) << sft;
-        res2 |= static_cast<uint64_t>(PI_ARRAY[(a.lower >> sft) & 0xFF]) << sft;
+    for (size_t i = 0; i < 16; i++) {
+        a.a[i] = static_cast<uint64_t>(PI_ARRAY[a.a[i]]);
     }
-    a.upper = res1;
-    a.lower = res2;
 }
 
 void kuznyechik::S_inv(block128& a) {
-
-    // TODO
+    for (size_t i = 0; i < 16; i++) {
+        a.a[i] = static_cast<uint64_t>(PI_INV_ARRAY[a.a[i]]);
+    }
 }
 
 static inline uint8x16_t combine_u64_to_u8x16(uint64_t a, uint64_t b) {
     uint64x1_t low = vcreate_u64(a);
     uint64x1_t high = vcreate_u64(b);
+    // Combine low and high into a 128-bit vector: [a(64 bits), b(64 bits)]
     uint64x2_t combined = vcombine_u64(low, high);
-    return vreinterpretq_u8_u64(combined);
+
+    // Reinterpret as a uint8x16_t
+    uint8x16_t val = vreinterpretq_u8_u64(combined);
+    // val = [a0, a1, a2, a3, a4, a5, a6, a7, b0, b1, b2, b3, b4, b5, b6, b7]
+    // (Here a0 is the lowest-order byte of 'a', a7 the highest, etc.)
+
+    // Step 1: vrev64q_u8 reverses each 64-bit half independently:
+    // After vrev64q_u8(val):
+    // [a7, a6, a5, a4, a3, a2, a1, a0, b7, b6, b5, b4, b3, b2, b1, b0]
+    val = vrev64q_u8(val);
+
+    // Step 2: Now we need to swap the two 8-byte halves:
+    // vextq_u8(val, val, 8) takes the last 8 bytes of val and rotates them to the front.
+    // After vextq_u8(val, val, 8):
+    // [b7, b6, b5, b4, b3, b2, b1, b0, a7, a6, a5, a4, a3, a2, a1, a0]
+    val = vextq_u8(val, val, 8);
+
+    return val;
 }
 
 static inline uint8x16_t CastBlock(const uint8_t* ptr) {
     return vld1q_u8(ptr);
 }
 
-void kuznyechik::ApplyLS(block128& a)
+void kuznyechik::ApplyLS(block128& a, LookupTable& lookup_table)
 {
     // Step 1: Combine lower and upper 64-bit parts into a single 128-bit NEON vector
-    uint8x16_t d = combine_u64_to_u8x16(a.lower, a.upper);
+    uint8x16_t d = vld1q_u8(a.a.data());
 
     // Step 2: Initialize the mask with 0x0F for each byte to isolate the lower 4 bits
     uint8_t arr[16] = {
@@ -186,7 +252,7 @@ void kuznyechik::ApplyLS(block128& a)
     vst1q_u16(tmp2_array, tmp2_u16);
 
     // Step 9: Access the lookup table
-    const LookupTable& lut = get_lookup_table();
+    const LookupTable& lut = lookup_table;
     const uint8_t* table = &lut[0][0][0]; // Correctly cast to const uint8_t*
 
     // Step 10: Initialize vec1 and vec2 by loading from the lookup table using i=0 indices
@@ -221,10 +287,19 @@ void kuznyechik::ApplyLS(block128& a)
     // Step 12: Final XOR to combine vec1 and vec2
     uint8x16_t final_vec = veorq_u8(vec1, vec2);
 
-    // Step 13: Reinterpret the final vector as two 64-bit integers and store them back
-    uint64x2_t u64_vec = vreinterpretq_u64_u8(final_vec);
-    a.lower = vgetq_lane_u64(u64_vec,0);
-    a.upper = vgetq_lane_u64(u64_vec,1);
+// Reverse the steps used previously:
+// 1. Reverse the halves again with vext (this moves the last 8 bytes to the front)
+// 2. Reverse the bytes in each 64-bit half again with vrev64q_u8
+
+// First swap the halves back
+//    uint8x16_t reverted_vec = vextq_u8(final_vec, final_vec, 8);
+//
+//// Then reverse each 64-bit half back
+//    reverted_vec = vrev64q_u8(reverted_vec);
+
+// Now reverted_vec should be in the original byte order
+//    uint64x2_t u64_vec = vreinterpretq_u64_u8(reverted_vec);
+    vst1q_u8(a.a.data(), final_vec);
 }
 
 void kuznyechik::L(block128& a) {
@@ -235,12 +310,22 @@ void kuznyechik::L(block128& a) {
 }
 
 void kuznyechik::R_inv(block128& a) {
-//    uint8_t a15 = a[15];
-//    for (size_t i = 15; i > 0; i--) {
-//        a[i] = a[i - 1];
-//    }
-//    a[0] = a15;
-//    a[0] = linear_transition(a);
+    auto c = a.a[0];
+    for (int j = 0; j < 15; j++) {
+        a.a[j] = a.a[j + 1];
+    }
+    a.a[15] = c;
+
+    a.a[15] = linear_transition(a);
+
+//    uint8_t a15 = a.a[15];
+//    std::memmove(a.a.data() + 1, a.a.data(), 15);
+//    a.a[0] = a15;
+//    a.a[0] = linear_transition(a);
+
+//    uint8_t val = linear_transition(a);
+//    std::memmove(a.a.data() + 1, a.a.data(), 15);
+//    a.a[0] = val;
 //TODO
 }
 
@@ -254,9 +339,8 @@ void kuznyechik::F_k(block128 &k, std::pair<block128, block128> &a) {
     auto c = a.second;
     a.second = a.first;
     X_k(a.first, k);
-//    S(a.first);
-//    L(a.first);
-    ApplyLS(a.first);
+    S(a.first);
+    L(a.first);
     X_k(a.first, c);
 }
 

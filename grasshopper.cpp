@@ -78,7 +78,7 @@ void Grasshopper::GenerateDecTable()
                 dec_ls_table[i][j][k] = mul_table[Table::invS[j]][l_matrix[k][i]];
 }
 
-uint8_t Grasshopper::PolyMul (uint8_t left, uint8_t right)
+uint8_t Grasshopper::PolyMul(uint8_t left, uint8_t right)
 {
     // p(x) = x^8 + x^7 + x^6 + x + 1 => 0b111000011 => 0xC3 (without MSB)
     uint8_t res = 0;
